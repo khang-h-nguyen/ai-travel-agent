@@ -1,20 +1,17 @@
 # Web Framework
-fastapi
-uvicorn[standard]
-python-multipart
-
-# CORS
-python-cors
+fastapi==0.120.0
+uvicorn[standard]==0.34.0
+python-multipart==0.0.20
 
 # Data Validation
-pydantic
-pydantic-settings
+pydantic==2.10.4
+pydantic-settings==2.7.1
 
 # Environment Variables
-python-dotenv
+python-dotenv==1.0.1
 
 # LLM Integration
-anthropic
+anthropic==0.71.0
 
 # HTTP Client
-httpx
+httpx==0.28.1
