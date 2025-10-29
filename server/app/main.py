@@ -8,6 +8,7 @@ import os
 load_dotenv()
 
 from app.agent import extract_travel_intent
+from app.destinations import find_destination
 
 
 @asynccontextmanager
@@ -92,6 +93,21 @@ async def extract_intent(message: ChatMessage):
         "success": True,
         "intent": result
     }
+
+@app.get("/api/destinations/{destination_name}")
+async def get_destination_info(destination_name: str):
+    dest = find_destination(destination_name)
+    
+    if dest:
+        return {
+            "found": True,
+            "destination": dest
+        }
+    else:
+        return {
+            "found": False,
+            "error": f"Destination '{destination_name}' not found"
+        }
 
 
 if __name__ == "__main__":

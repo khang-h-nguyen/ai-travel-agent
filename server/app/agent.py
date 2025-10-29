@@ -1,6 +1,8 @@
 import os
 import json
 from anthropic import Anthropic
+from app.destinations import validate_destination, calculate_trip_budget
+import re
 
 
 def setup_claude():
@@ -75,6 +77,48 @@ def parse_json_response(response_text):
         return {}
 
 
+def check_destination(extracted_data):
+    destination_name = extracted_data.get("destination")
+
+    if not destination_name:
+        print("  No destination specified")
+        extracted_data["validation"] = {
+            "is_valid": False,
+            "error": "No destination provided",
+        }
+        return extracted_data
+
+    is_valid, result = validate_destination(destination_name)
+
+    if is_valid:
+        print(f"  Found: {result['name']}")
+        print(f"  Average budget: ${result['avg_daily_budget']}/day")
+        print(f"  Best time: {', '.join(result['best_months'][:3])}")
+
+        extracted_data["validation"] = {"is_valid": True, "destination_info": result}
+
+        duration = extracted_data.get("duration")
+        if duration:
+            days_match = re.search(r"(\d+)", duration)
+            if days_match:
+                num_days = int(days_match.group(1))
+                budget_level = extracted_data.get("budget") or "mid-range"
+
+                budget_calc = calculate_trip_budget(
+                    destination_name, num_days, budget_level
+                )
+
+                if budget_calc:
+                    print(f"  Estimated total: ${budget_calc['total']}")
+                    extracted_data["estimated_budget"] = budget_calc
+
+    else:
+        print(f"  {result}")
+        extracted_data["validation"] = {"is_valid": False, "error": result}
+
+    return extracted_data
+
+
 def extract_travel_intent(user_message):
     setup_result = setup_claude()
     if not setup_result:
@@ -90,9 +134,11 @@ def extract_travel_intent(user_message):
 
     extracted_data = parse_json_response(response_text)
 
+    validated_data = check_destination(extracted_data)
+
     print("=" * 60)
 
-    return extracted_data
+    return validated_data
 
 
 if __name__ == "__main__":
