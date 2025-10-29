@@ -2,6 +2,7 @@ import os
 import json
 from anthropic import Anthropic
 from app.destinations import validate_destination, calculate_trip_budget
+from app.activities import get_activities_for_destination
 import re
 
 
@@ -20,7 +21,7 @@ def setup_claude():
     return client, model
 
 
-def ask_claude_to_extract(client, model, user_message):
+def extract_intent_from_message(client, model, user_message):
     system_prompt = """You are a travel assistant. Extract information from travel requests.
 Return ONLY a JSON object like this:
 {
@@ -29,6 +30,11 @@ Return ONLY a JSON object like this:
   "budget": "budget",
   "interests": ["culture", "food"]
 }
+
+For duration, convert to days:
+- "1 weekend" or "over the weekend" = "3 days"
+- "1 week" = "7 days"
+- "1 month" = "30 days"
 
 If something is missing, use null."""
 
@@ -46,13 +52,14 @@ If something is missing, use null."""
     )
 
     response_text = response.content[0].text
-
     print(f"Claude responded!")
-    return response_text
+
+    return parse_json_response(response_text)
 
 
 def parse_json_response(response_text):
     try:
+        # Find JSON object in response (sometimes Claude adds extra text)
         start = response_text.find("{")
         end = response_text.rfind("}") + 1
 
@@ -77,7 +84,7 @@ def parse_json_response(response_text):
         return {}
 
 
-def check_destination(extracted_data):
+def validate_and_enrich_destination(extracted_data):
     destination_name = extracted_data.get("destination")
 
     if not destination_name:
@@ -96,22 +103,6 @@ def check_destination(extracted_data):
         print(f"  Best time: {', '.join(result['best_months'][:3])}")
 
         extracted_data["validation"] = {"is_valid": True, "destination_info": result}
-
-        duration = extracted_data.get("duration")
-        if duration:
-            days_match = re.search(r"(\d+)", duration)
-            if days_match:
-                num_days = int(days_match.group(1))
-                budget_level = extracted_data.get("budget") or "mid-range"
-
-                budget_calc = calculate_trip_budget(
-                    destination_name, num_days, budget_level
-                )
-
-                if budget_calc:
-                    print(f"  Estimated total: ${budget_calc['total']}")
-                    extracted_data["estimated_budget"] = budget_calc
-
     else:
         print(f"  {result}")
         extracted_data["validation"] = {"is_valid": False, "error": result}
@@ -119,7 +110,54 @@ def check_destination(extracted_data):
     return extracted_data
 
 
+def add_budget_estimate(extracted_data):
+    destination_name = extracted_data.get("destination")
+    duration = extracted_data.get("duration")
+
+    if not duration or not destination_name:
+        return extracted_data
+
+    # Extract number of days from duration string
+    days_match = re.search(r"(\d+)", duration)
+    if days_match:
+        num_days = int(days_match.group(1))
+        budget_level = extracted_data.get("budget") or "mid-range"
+
+        budget_calc = calculate_trip_budget(
+            destination_name, num_days, budget_level
+        )
+
+        if budget_calc:
+            print(f"  Estimated total: ${budget_calc['total']}")
+            extracted_data["estimated_budget"] = budget_calc
+
+    return extracted_data
+
+
+def add_activity_suggestions(extracted_data, client, model):
+    destination_name = extracted_data.get("destination")
+    interests = extracted_data.get("interests", [])
+
+    if not destination_name:
+        return extracted_data
+
+    # Pass Claude client for semantic matching if exact match fails
+    activities = get_activities_for_destination(
+        destination_name,
+        interests,
+        limit=8,
+        client=client,
+        model=model
+    )
+
+    if activities:
+        extracted_data["suggested_activities"] = activities
+
+    return extracted_data
+
+
 def extract_travel_intent(user_message):
+    # Setup Claude once and reuse for both intent extraction and activity matching
     setup_result = setup_claude()
     if not setup_result:
         return {"error": "Could not connect to Claude"}
@@ -127,32 +165,15 @@ def extract_travel_intent(user_message):
     client, model = setup_result
 
     try:
-        response_text = ask_claude_to_extract(client, model, user_message)
+        extracted_data = extract_intent_from_message(client, model, user_message)
+        extracted_data = validate_and_enrich_destination(extracted_data)
+
+        if extracted_data.get("validation", {}).get("is_valid"):
+            extracted_data = add_budget_estimate(extracted_data)
+            extracted_data = add_activity_suggestions(extracted_data, client, model)
+
     except Exception as e:
-        print(f"Error calling Claude: {e}")
+        print(f"Error processing travel intent: {e}")
         return {"error": str(e)}
 
-    extracted_data = parse_json_response(response_text)
-
-    validated_data = check_destination(extracted_data)
-
-    print("=" * 60)
-
-    return validated_data
-
-
-if __name__ == "__main__":
-    from dotenv import load_dotenv
-
-    load_dotenv()
-
-    test_messages = [
-        "I want a 5-day cultural trip to Paris on a budget",
-        "Planning a romantic week in Tokyo with food and culture",
-        "Family vacation to Bali, love beaches and adventure",
-    ]
-
-    for message in test_messages:
-        result = extract_travel_intent(message)
-        print(f"\n{'='*60}\n")
-        input("Press Enter to continue to next test...\n")
+    return extracted_data
