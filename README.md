@@ -1,6 +1,6 @@
 # AI Travel Planner
 
-An AI-powered travel planning assistant for Canadian destinations. Built with FastAPI, and React (TypeScript).
+Welcome to the AI Travel Agent repository! This project is a smart travel planning assistant for Canadian destinations that uses Claude API to handle user intent extraction and semantic matching. Built with FastAPI, and React (TypeScript).
 
 ## Overview
 
