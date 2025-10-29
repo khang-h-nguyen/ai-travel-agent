@@ -40,7 +40,6 @@ If something is missing, use null."""
 
     user_prompt = f'Extract travel info from: "{user_message}"'
 
-    print(f"\nSending to Claude...")
     print(f"User said: {user_message}")
 
     response = client.messages.create(
@@ -52,7 +51,6 @@ If something is missing, use null."""
     )
 
     response_text = response.content[0].text
-    print(f"Claude responded!")
 
     return parse_json_response(response_text)
 
