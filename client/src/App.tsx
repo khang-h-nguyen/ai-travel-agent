@@ -4,6 +4,11 @@ import { api } from './services/api';
 
 interface Result {
   response: string;
+  steps?: Array<{
+    status: string;
+    message: string;
+    data?: Record<string, any>;
+  }>;
 }
 
 function App() {
@@ -118,6 +123,21 @@ function App() {
             </div>
           ) : (
             <div className="result-section">
+              {result.steps && result.steps.length > 0 && (
+                <div className="agent-panel" style={{ marginBottom: '20px' }}>
+                  <h3>Agent Process</h3>
+                  <div className="agent-steps">
+                    {result.steps.map((step, index) => (
+                      <div key={index} className="agent-step">
+                        <span className="step-icon">
+                          {step.status === 'completed' ? '✓' : '⏳'}
+                        </span>
+                        <span>{step.message}</span>
+                      </div>
+                    ))}
+                  </div>
+                </div>
+              )}
               <div className="result-content">
                 <pre>{result.response}</pre>
               </div>
