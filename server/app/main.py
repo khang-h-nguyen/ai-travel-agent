@@ -25,36 +25,15 @@ class ChatMessage(BaseModel):
 
 @app.post("/api/chat")
 async def chat(message: ChatMessage):
-    result = extract_travel_intent(message.message)
-
+    result = await extract_travel_intent(message.message)
+    
     if "error" in result:
-        return {"response": f"Sorry, I encountered an error: {result['error']}"}
-
-    response_parts = []
-
-    validation = result.get("validation", {})
-    if not validation.get("is_valid"):
-        error_msg = validation.get("error", "Unknown error")
         return {
-            "response": f"❌ {error_msg}\n\nPlease try a Canadian destination like Toronto, Vancouver, Montreal, etc."
+            "response": f"Sorry, I encountered an error: {result['error']}",
+            "steps": result.get("steps", [])
         }
-
-    dest_info = validation.get("destination_info", {})
-    response_parts.append(f"✈️ Great choice! {dest_info.get('name', 'Your destination')} is perfect!")
-
-    if "estimated_budget" in result:
-        budget = result["estimated_budget"]
-        response_parts.append(f"\n💰 Budget: ${budget['total']} ({budget['num_days']} days)")
-        response_parts.append(f"   ${budget['daily_budget']}/day")
-
-    if "suggested_activities" in result:
-        activities = result["suggested_activities"]
-        response_parts.append(f"\n🎯 Suggested Activities:")
-        for i, activity in enumerate(activities, 1):
-            response_parts.append(f"   {i}. {activity}")
-
-    if dest_info.get("best_months"):
-        months = dest_info["best_months"][:3]
-        response_parts.append(f"\n📅 Best time: {', '.join(months)}")
-
-    return {"response": "\n".join(response_parts)}
+    
+    return {
+        "response": result["response"],
+        "steps": result["steps"]
+    }
