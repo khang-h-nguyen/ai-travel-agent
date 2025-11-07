@@ -1,6 +1,6 @@
 # AI Travel Planner
 
-An AI-powered travel planning assistant for Canadian destinations. Built with Claude (Anthropic), FastAPI, and React.
+Welcome to the AI Travel Agent repository! This project is a smart travel planning assistant for Canadian destinations that uses Claude API to handle user intent extraction and semantic matching. Built with FastAPI, and React (TypeScript).
 
 ## Overview
 
@@ -25,7 +25,7 @@ Describe your ideal trip in natural language and receive a complete itinerary wi
 
 1. Clone the repository
 ```bash
-git clone https://github.com/yourusername/ai-travel-planner.git
+git clone https://github.com/khang-h-nguyen/ai-travel-agent.git
 cd ai-travel-planner
 ```
 
@@ -74,7 +74,8 @@ Open browser to `http://localhost:3001`
 
 The planner presents a clean interface with example prompts. Users describe their trip in natural language.
 
-![Screenshot: Landing page with input form and example prompts]
+<img width="1271" height="854" alt="Screenshot 2025-10-29 at 2 51 57 PM" src="https://github.com/user-attachments/assets/0648683e-600c-4297-9781-2e58b3d4ac1b" />
+
 
 **Example inputs:**
 - "5-day cultural trip to Toronto on a budget"
@@ -87,27 +88,23 @@ The planner presents a clean interface with example prompts. Users describe thei
 
 The backend receives the request and sends it to Claude for intent extraction.
 
-![Screenshot: Browser console showing API request to /api/chat]
-
 Claude analyzes the message and extracts structured data:
 - Destination
 - Duration (converts "1 weekend" to "3 days", "1 week" to "7 days")
 - Budget level
 - Interests (activities the user enjoys)
 
-![Screenshot: Terminal showing Claude's JSON response]
+<img width="741" height="225" alt="Screenshot 2025-10-29 at 2 59 04 PM" src="https://github.com/user-attachments/assets/ac599030-583d-4560-8f75-f052755e14df" />
 
 **Server logs show:**
 ```
-Sending to Claude...
-User said: Family vacation to Victoria, love beaches and adventure
-Claude responded!
+User said: I want a hiking trip to Banff for 5 days. Suggest good food spots too.
 
 Extracted data:
-  Destination: Victoria
-  Duration: 7 days
-  Budget: mid-range
-  Interests: ['beaches', 'adventure']
+  Destination: Banff
+  Duration: 5 days
+  Budget: None
+  Interests: ['hiking', 'food']
 ```
 
 ---
@@ -116,16 +113,17 @@ Extracted data:
 
 The agent validates the destination against the Canadian cities database.
 
-![Screenshot: Terminal showing destination validation]
-
 **Server logs show:**
 ```
-Found: Victoria, British Columbia
+Found: Banff, Alberta
 Average budget: $140/day
-Best time: April, May, June
+Best time: June, July, August
 ```
 
 If the destination isn't in the database, the user receives an error with suggestions.
+
+<img width="917" height="279" alt="Screenshot 2025-10-29 at 3 06 49 PM" src="https://github.com/user-attachments/assets/cdeb2761-1320-4e8d-aa92-029db046fd44" />
+
 
 ---
 
@@ -135,14 +133,12 @@ The system calculates the estimated trip cost based on:
 - Destination's average daily budget
 - Trip duration in days
 
-![Screenshot: Terminal showing budget calculation]
-
 **Server logs show:**
 ```
-Estimated total: $980
+Estimated total: $700
 ```
 
-Formula: `Daily Rate × Number of Days = Total Budget`
+Formula: `Average Daily Rate × Number of Days = Total Budget`
 
 ---
 
@@ -153,32 +149,23 @@ The agent attempts to match user interests to activity categories.
 **First: Exact Match**
 If interests match existing categories (e.g., "culture", "food"), activities are returned immediately.
 
-![Screenshot: Terminal showing exact match]
-
 **Fallback: Semantic Matching**
 If no exact match (e.g., "beaches and adventure" doesn't match "nature"), Claude performs semantic mapping.
 
-![Screenshot: Terminal showing semantic matching with Claude]
+<img width="616" height="36" alt="Screenshot 2025-10-29 at 3 03 20 PM" src="https://github.com/user-attachments/assets/583c52fc-920e-4299-8add-9d6bf48b3942" />
+
 
 **Server logs show:**
 ```
-No exact match for ['beaches', 'adventure'], using semantic matching...
-Mapped to categories: ['nature']
+No exact match for ['hiking', 'food'], using semantic matching...
+Mapped to categories: ['nature', 'outdoor', 'adventure']
 ```
 
 Claude maps the interests to the closest available categories for that destination.
 
 ---
 
-### Step 6: Response Generation
-
-The backend formats all collected data into a readable itinerary.
-
-![Screenshot: Terminal showing final response assembly]
-
----
-
-### Step 7: Display Results
+### Step 6: Display Results
 
 The frontend displays the complete itinerary with:
 - Destination confirmation
@@ -186,7 +173,7 @@ The frontend displays the complete itinerary with:
 - 8 suggested activities
 - Best months to visit
 
-![Screenshot: Frontend showing complete itinerary results]
+<img width="917" height="710" alt="Screenshot 2025-10-29 at 3 06 27 PM" src="https://github.com/user-attachments/assets/c87982eb-5b9d-4a93-9b91-7488d8a9889a" />
 
 Users can click "Plan Another Trip" to start over.
 
