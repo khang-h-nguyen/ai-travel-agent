@@ -1,177 +1,115 @@
 import os
-import json
-from anthropic import Anthropic
-from app.destinations import validate_destination, calculate_trip_budget
-from app.activities import get_activities_for_destination
-import re
+from langchain.agents import AgentExecutor, create_react_agent
+from langchain_anthropic import ChatAnthropic
+from langchain_core.prompts import PromptTemplate
+from langchain_core.callbacks import BaseCallbackHandler
+
+from app.tools import (
+    validate_destination_tool,
+    get_weather_tool,
+    get_activities_tool,
+    calculate_budget_tool,
+    parse_duration_from_text,
+)
+
+
+class StepTracker(BaseCallbackHandler):
+
+    def __init__(self):
+        self.steps = []
+
+    def on_tool_start(self, tool, input_str, **kwargs):
+        tool_name = tool.name if hasattr(tool, "name") else str(tool)
+
+        self.steps.append(
+            {"status": "in_progress", "message": f"Using {tool_name}", "data": {}}
+        )
+
+    def on_tool_end(self, output, **kwargs):
+        if self.steps:
+            self.steps[-1]["status"] = "completed"
 
 
 def setup_claude():
     api_key = os.getenv("ANTHROPIC_API_KEY")
+    model = os.getenv("ANTHROPIC_MODEL")
 
     if not api_key:
         print("Error: No API key found!")
-        print("Make sure ANTHROPIC_API_KEY is in your .env file")
         return None
 
-    client = Anthropic(api_key=api_key)
-    model = os.getenv("ANTHROPIC_MODEL")
-
     print(f"Connected to Claude: {model}")
-    return client, model
+    return api_key, model
 
 
-def extract_intent_from_message(client, model, user_message):
-    system_prompt = """You are a travel assistant. Extract information from travel requests.
-Return ONLY a JSON object like this:
-{
-  "destination": "Paris",
-  "duration": "5 days",
-  "budget": "budget",
-  "interests": ["culture", "food"]
-}
-
-For duration, convert to days:
-- "1 weekend" or "over the weekend" = "3 days"
-- "1 week" = "7 days"
-- "1 month" = "30 days"
-
-If something is missing, use null."""
-
-    user_prompt = f'Extract travel info from: "{user_message}"'
-
+async def extract_travel_intent(user_message):
     print(f"User said: {user_message}")
 
-    response = client.messages.create(
-        model=model,
-        max_tokens=500,
-        temperature=0.3,
-        system=system_prompt,
-        messages=[{"role": "user", "content": user_prompt}],
-    )
-
-    response_text = response.content[0].text
-
-    return parse_json_response(response_text)
-
-
-def parse_json_response(response_text):
-    try:
-        # Find JSON object in response (sometimes Claude adds extra text)
-        start = response_text.find("{")
-        end = response_text.rfind("}") + 1
-
-        if start == -1 or end == 0:
-            print("Warning: No JSON found in response")
-            return {}
-
-        json_text = response_text[start:end]
-        data = json.loads(json_text)
-
-        print("\nExtracted data:")
-        print(f"  Destination: {data.get('destination', 'Not found')}")
-        print(f"  Duration: {data.get('duration', 'Not found')}")
-        print(f"  Budget: {data.get('budget', 'Not found')}")
-        print(f"  Interests: {data.get('interests', [])}")
-
-        return data
-
-    except json.JSONDecodeError as e:
-        print(f"Error: Could not parse JSON: {e}")
-        print(f"Response was: {response_text[:100]}...")
-        return {}
-
-
-def validate_and_enrich_destination(extracted_data):
-    destination_name = extracted_data.get("destination")
-
-    if not destination_name:
-        print("  No destination specified")
-        extracted_data["validation"] = {
-            "is_valid": False,
-            "error": "No destination provided",
-        }
-        return extracted_data
-
-    is_valid, result = validate_destination(destination_name)
-
-    if is_valid:
-        print(f"  Found: {result['name']}")
-        print(f"  Average budget: ${result['avg_daily_budget']}/day")
-        print(f"  Best time: {', '.join(result['best_months'][:3])}")
-
-        extracted_data["validation"] = {"is_valid": True, "destination_info": result}
-    else:
-        print(f"  {result}")
-        extracted_data["validation"] = {"is_valid": False, "error": result}
-
-    return extracted_data
-
-
-def add_budget_estimate(extracted_data):
-    destination_name = extracted_data.get("destination")
-    duration = extracted_data.get("duration")
-
-    if not duration or not destination_name:
-        return extracted_data
-
-    # Extract number of days from duration string
-    days_match = re.search(r"(\d+)", duration)
-    if days_match:
-        num_days = int(days_match.group(1))
-        budget_level = extracted_data.get("budget") or "mid-range"
-
-        budget_calc = calculate_trip_budget(
-            destination_name, num_days, budget_level
-        )
-
-        if budget_calc:
-            print(f"  Estimated total: ${budget_calc['total']}")
-            extracted_data["estimated_budget"] = budget_calc
-
-    return extracted_data
-
-
-def add_activity_suggestions(extracted_data, client, model):
-    destination_name = extracted_data.get("destination")
-    interests = extracted_data.get("interests", [])
-
-    if not destination_name:
-        return extracted_data
-
-    # Pass Claude client for semantic matching if exact match fails
-    activities = get_activities_for_destination(
-        destination_name,
-        interests,
-        limit=8,
-        client=client,
-        model=model
-    )
-
-    if activities:
-        extracted_data["suggested_activities"] = activities
-
-    return extracted_data
-
-
-def extract_travel_intent(user_message):
-    # Setup Claude once and reuse for both intent extraction and activity matching
     setup_result = setup_claude()
     if not setup_result:
         return {"error": "Could not connect to Claude"}
 
-    client, model = setup_result
+    api_key, model_name = setup_result
+
+    llm = ChatAnthropic(
+        anthropic_api_key=api_key, model_name=model_name, temperature=0.3
+    )
+
+    tools = [
+        validate_destination_tool,
+        get_weather_tool,
+        get_activities_tool,
+        calculate_budget_tool,
+    ]
+
+    prompt_template = """You are a travel planning assistant for Canadian destinations.
+
+Help users plan trips by using the available tools to:
+1. Validate destination
+2. Check weather if needed
+3. Get activity recommendations
+4. Calculate budget
+
+Available destinations: Toronto, Vancouver, Montreal, Quebec City, Banff, Victoria, Ottawa, Calgary, Niagara Falls, Whistler
+
+You have access to these tools:
+
+{tools}
+
+Use this format:
+
+Question: {input}
+Thought: think about what to do
+Action: tool to use, must be one of [{tool_names}]
+Action Input: input for the tool
+Observation: result from tool
+... (repeat Thought/Action/Observation as needed)
+Thought: I have enough information now
+Final Answer: complete response to user
+
+Begin!
+
+Question: {input}
+Thought:{agent_scratchpad}"""
+
+    prompt = PromptTemplate.from_template(prompt_template)
+    agent = create_react_agent(llm, tools, prompt)
+
+    tracker = StepTracker()
+
+    agent_executor = AgentExecutor(
+        agent=agent, tools=tools, callbacks=[tracker], verbose=True, max_iterations=10
+    )
 
     try:
-        extracted_data = extract_intent_from_message(client, model, user_message)
-        extracted_data = validate_and_enrich_destination(extracted_data)
+        duration = parse_duration_from_text(user_message)
+        if duration:
+            user_message = f"{user_message} (Duration: {duration} days)"
 
-        if extracted_data.get("validation", {}).get("is_valid"):
-            extracted_data = add_budget_estimate(extracted_data)
-            extracted_data = add_activity_suggestions(extracted_data, client, model)
+        result = await agent_executor.ainvoke({"input": user_message})
+
+        return {"response": result.get("output", ""), "steps": tracker.steps}
 
     except Exception as e:
-        print(f"Error processing travel intent: {e}")
-        return {"error": str(e)}
-
-    return extracted_data
+        print(f"Error: {e}")
+        return {"error": str(e), "steps": tracker.steps}
