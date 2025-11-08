@@ -14,23 +14,22 @@ from app.tools import (
 
 
 class StepTracker(BaseCallbackHandler):
-    """Track what the agent is doing so we can show it in the UI."""
 
     def __init__(self):
         self.steps = []
 
-    def on_tool_start(self, tool, input_str, **kwargs):
-        """When agent uses a tool."""
-        tool_name = tool.name if hasattr(tool, "name") else str(tool)
-
+    def on_agent_action(self, action, **kwargs):
+        tool_name = action.tool
         self.steps.append(
             {"status": "in_progress", "message": f"Using {tool_name}", "data": {}}
         )
 
-    def on_tool_end(self, output, **kwargs):
-        """When tool finishes."""
-        if self.steps:
+    def on_agent_finish(self, finish, **kwargs):
+        if self.steps and self.steps[-1]["status"] == "in_progress":
             self.steps[-1]["status"] = "completed"
+        self.steps.append(
+            {"status": "completed", "message": "Planning complete", "data": {}}
+        )
 
 
 def setup_claude():
@@ -112,11 +111,25 @@ Be helpful and concise.""",
         result = await agent_executor.ainvoke(
             {
                 "input": user_message,
-                "chat_history": [],  #TODO: add conversation memory later
+                "chat_history": [],  # TODO: add conversation memory later
             }
         )
 
-        return {"response": result.get("output", ""), "steps": tracker.steps}
+        output = result.get("output", "")
+        if isinstance(output, list):
+            text_parts = []
+            for item in output:
+                if isinstance(item, dict):
+                    # Extract text field from each block
+                    if item.get("type") == "text":
+                        text_parts.append(item.get("text", ""))
+            output = "\n\n".join(text_parts)
+
+        if not isinstance(output, str):
+            output = str(output)
+        print(f"[DEBUG]: Returning {len(tracker.steps)} steps to frontend")
+        print(f"DEBUG: Steps content: {tracker.steps}")
+        return {"response": output, "steps": tracker.steps}
 
     except Exception as e:
         print(f"Error: {e}")
