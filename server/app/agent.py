@@ -2,7 +2,6 @@ import os
 from langchain.agents import AgentExecutor, create_tool_calling_agent
 from langchain_anthropic import ChatAnthropic
 from langchain_core.prompts import ChatPromptTemplate
-from langchain_core.callbacks import BaseCallbackHandler
 
 from app.tools import (
     validate_destination_tool,
@@ -12,28 +11,23 @@ from app.tools import (
     parse_duration_from_text,
 )
 
+AGENT_PROMPT = """You are a travel planning assistant for Canadian destinations.
 
-class StepTracker(BaseCallbackHandler):
+Help users plan trips by:
+1. ALWAYS validate the destination first
+2. Check current weather (helps recommend appropriate activities)
+3. Get activity recommendations based on interests AND weather
+4. Calculate budget
 
-    def __init__(self):
-        self.steps = []
+IMPORTANT: Always check weather before recommending activities, so you can suggest 
+indoor options if it's raining or winter activities if it's snowing.
 
-    def on_agent_action(self, action, **kwargs):
-        tool_name = action.tool
-        self.steps.append(
-            {"status": "in_progress", "message": f"Using {tool_name}", "data": {}}
-        )
+Available destinations: Toronto, Vancouver, Montreal, Quebec City, Banff, Victoria, Ottawa, Calgary, Niagara Falls, Whistler
 
-    def on_agent_finish(self, finish, **kwargs):
-        if self.steps and self.steps[-1]["status"] == "in_progress":
-            self.steps[-1]["status"] = "completed"
-        self.steps.append(
-            {"status": "completed", "message": "Planning complete", "data": {}}
-        )
+Be helpful and concise."""
 
 
 def setup_claude():
-    """Setup Claude - same as before."""
     api_key = os.getenv("ANTHROPIC_API_KEY")
     model = os.getenv("ANTHROPIC_MODEL")
 
@@ -41,31 +35,20 @@ def setup_claude():
         print("Error: No API key found!")
         return None
 
-    print(f"Connected to Claude: {model}")
     return api_key, model
 
 
 async def extract_travel_intent(user_message):
-    """
-    Main function - now using LangChain's tool calling agent.
-
-    The agent will figure out which tools to call on its own.
-    """
-    print(f"User said: {user_message}")
-
-    # Setup
     setup_result = setup_claude()
     if not setup_result:
-        return {"error": "Could not connect to Claude"}
+        return {"error": "Could not connect to LLM"}
 
     api_key, model_name = setup_result
 
-    # Create LLM
     llm = ChatAnthropic(
-        anthropic_api_key=api_key, model_name=model_name, temperature=0.3
+        anthropic_api_key=api_key, model_name=model_name, temperature=0.5
     )
 
-    # Tools the agent can use
     tools = [
         validate_destination_tool,
         get_weather_tool,
@@ -73,23 +56,9 @@ async def extract_travel_intent(user_message):
         calculate_budget_tool,
     ]
 
-    # Prompt using new format (ChatPromptTemplate)
     prompt = ChatPromptTemplate.from_messages(
         [
-            (
-                "system",
-                """You are a travel planning assistant for Canadian destinations.
-
-Help users plan trips by using the available tools to:
-1. Validate destination
-2. Check weather if needed  
-3. Get activity recommendations based on interests and weather
-4. Calculate budget
-
-Available destinations: Toronto, Vancouver, Montreal, Quebec City, Banff, Victoria, Ottawa, Calgary, Niagara Falls, Whistler
-
-Be helpful and concise.""",
-            ),
+            ("system", AGENT_PROMPT),
             ("placeholder", "{chat_history}"),
             ("human", "{input}"),
             ("placeholder", "{agent_scratchpad}"),
@@ -97,10 +66,9 @@ Be helpful and concise.""",
     )
 
     agent = create_tool_calling_agent(llm, tools, prompt)
-    tracker = StepTracker()
 
     agent_executor = AgentExecutor(
-        agent=agent, tools=tools, callbacks=[tracker], verbose=True, max_iterations=10
+        agent=agent, tools=tools, verbose=True, max_iterations=10
     )
 
     try:
@@ -127,10 +95,9 @@ Be helpful and concise.""",
 
         if not isinstance(output, str):
             output = str(output)
-        print(f"[DEBUG]: Returning {len(tracker.steps)} steps to frontend")
-        print(f"DEBUG: Steps content: {tracker.steps}")
-        return {"response": output, "steps": tracker.steps}
+
+        return {"response": output}
 
     except Exception as e:
         print(f"Error: {e}")
-        return {"error": str(e), "steps": tracker.steps}
+        return {"error": str(e)}

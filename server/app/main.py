@@ -26,14 +26,8 @@ class ChatMessage(BaseModel):
 @app.post("/api/chat")
 async def chat(message: ChatMessage):
     result = await extract_travel_intent(message.message)
-    
+
     if "error" in result:
-        return {
-            "response": f"Sorry, I encountered an error: {result['error']}",
-            "steps": result.get("steps", [])
-        }
-    
-    return {
-        "response": result["response"],
-        "steps": result["steps"]
-    }
+        return {"response": f"Sorry, I encountered an error: {result['error']}"}
+
+    return {"response": result["response"]}
