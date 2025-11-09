@@ -21,13 +21,14 @@ app.add_middleware(
 
 class ChatMessage(BaseModel):
     message: str
+    session_id: str = None
 
 
 @app.post("/api/chat")
 async def chat(message: ChatMessage):
-    result = await extract_travel_intent(message.message)
+    result = await extract_travel_intent(message.message, message.session_id)
 
     if "error" in result:
         return {"response": f"Sorry, I encountered an error: {result['error']}"}
 
-    return {"response": result["response"]}
+    return {"response": result["response"], "session_id": result["session_id"]}

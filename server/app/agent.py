@@ -2,6 +2,7 @@ import os
 from langchain.agents import AgentExecutor, create_tool_calling_agent
 from langchain_anthropic import ChatAnthropic
 from langchain_core.prompts import ChatPromptTemplate
+from langchain_core.messages import HumanMessage, AIMessage
 
 from app.tools import (
     validate_destination_tool,
@@ -10,6 +11,7 @@ from app.tools import (
     calculate_budget_tool,
     parse_duration_from_text,
 )
+from app.session_store import create_session, get_session_messages, add_message
 
 AGENT_PROMPT = """You are a travel planning assistant for Canadian destinations.
 
@@ -38,7 +40,7 @@ def setup_claude():
     return api_key, model
 
 
-async def extract_travel_intent(user_message):
+async def extract_travel_intent(user_message, session_id=None):
     setup_result = setup_claude()
     if not setup_result:
         return {"error": "Could not connect to LLM"}
@@ -71,15 +73,25 @@ async def extract_travel_intent(user_message):
         agent=agent, tools=tools, verbose=True, max_iterations=10
     )
 
+    # Session management
+    if not session_id:
+        session_id = create_session()
+
     try:
         duration = parse_duration_from_text(user_message)
         if duration:
             user_message = f"{user_message} (Duration: {duration} days)"
+        add_message(session_id, HumanMessage(content=user_message))
+    
+        chat_history = get_session_messages(session_id)
+        if len(chat_history) == 0:
+            # Session expired or invalid, create new one
+            session_id = create_session()
 
         result = await agent_executor.ainvoke(
             {
                 "input": user_message,
-                "chat_history": [],  # TODO: add conversation memory later
+                "chat_history": chat_history
             }
         )
 
@@ -88,7 +100,6 @@ async def extract_travel_intent(user_message):
             text_parts = []
             for item in output:
                 if isinstance(item, dict):
-                    # Extract text field from each block
                     if item.get("type") == "text":
                         text_parts.append(item.get("text", ""))
             output = "\n\n".join(text_parts)
@@ -96,7 +107,10 @@ async def extract_travel_intent(user_message):
         if not isinstance(output, str):
             output = str(output)
 
-        return {"response": output}
+        # Save conversation to chat history
+        add_message(session_id, AIMessage(content=output))
+
+        return {"response": output, "session_id": session_id}
 
     except Exception as e:
         print(f"Error: {e}")
