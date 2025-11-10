@@ -9,8 +9,8 @@ const apiClient = axios.create({
 });
 
 export const api = {
-  async sendMessage(message: string) {
-    const response = await apiClient.post('/chat', { message });
+  async sendMessage(message: string, sessionId?: string) {
+    const response = await apiClient.post('/chat', { message, session_id: sessionId });
     return response.data;
   },
 };

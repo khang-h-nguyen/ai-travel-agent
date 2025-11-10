@@ -59,9 +59,6 @@ body {
   flex-direction: column;
   justify-content: center;
   padding: 32px 0;
-}
-
-.input-section {
   max-width: 600px;
   margin: 0 auto;
   width: 100%;
@@ -69,6 +66,7 @@ body {
 
 .prompt-examples {
   margin-bottom: 32px;
+  width: 100%;
 }
 
 .examples {
@@ -96,16 +94,15 @@ body {
 }
 
 .result-section {
-  max-width: 700px;
-  margin: 0 auto;
   width: 100%;
-  animation: fadeIn 0.4s ease-in;
+  margin-bottom: 24px;
+  animation: fadeIn 0.3s ease-out;
 }
 
 @keyframes fadeIn {
   from {
     opacity: 0;
-    transform: translateY(20px);
+    transform: translateY(10px);
   }
 
   to {
@@ -119,7 +116,6 @@ body {
   border: 1px solid var(--border);
   border-radius: 12px;
   padding: 24px;
-  margin-bottom: 20px;
 }
 
 .result-content pre {
@@ -131,78 +127,27 @@ body {
   word-wrap: break-word;
 }
 
-.reset-button {
-  background: var(--bg-secondary);
-  border: 1px solid var(--border);
-  padding: 12px 20px;
-  border-radius: 8px;
-  color: var(--text-primary);
-  font-size: 15px;
-  cursor: pointer;
-  transition: all 0.2s;
-  display: flex;
-  align-items: center;
-  gap: 8px;
-  margin: 0 auto;
-}
-
-.reset-button:hover {
-  background: var(--bg-tertiary);
-  border-color: var(--accent);
-}
-
-.spinner {
-  width: 16px;
-  height: 16px;
-  border: 2px solid var(--bg-tertiary);
-  border-top-color: var(--accent);
-  border-radius: 50%;
-  animation: spin 0.6s linear infinite;
-}
-
-@keyframes spin {
-  to {
-    transform: rotate(360deg);
-  }
-}
-
+/* Input Area Styles */
 .input-area {
-  margin-top: 16px;
+  width: 100%;
+  margin-top: 8px;
 }
 
-.plan-button {
-  background: var(--accent);
-  border: none;
-  border-radius: 8px;
-  padding: 14px 28px;
-  color: white;
-  font-size: 16px;
-  font-weight: 500;
-  cursor: pointer;
-  transition: background 0.2s;
-  display: flex;
-  align-items: center;
-  gap: 10px;
-  margin: 16px auto 0;
-}
-
-.plan-button:hover:not(:disabled) {
-  background: var(--accent-hover);
-}
-
-.plan-button:disabled {
-  opacity: 0.5;
-  cursor: not-allowed;
+.refine-hint {
+  font-size: 13px;
+  color: var(--text-secondary);
+  margin-bottom: 12px;
+  padding: 8px 12px;
+  background: rgba(99, 102, 241, 0.08);
+  border-radius: 6px;
+  border-left: 2px solid var(--accent);
 }
 
 .input-wrapper {
-  display: flex;
-  gap: 12px;
-  align-items: flex-end;
   background: var(--bg-secondary);
   border: 1px solid var(--border);
   border-radius: 12px;
-  padding: 12px 16px;
+  padding: 14px 16px;
   transition: border-color 0.2s;
 }
 
@@ -211,7 +156,7 @@ body {
 }
 
 .input-wrapper textarea {
-  flex: 1;
+  width: 100%;
   background: transparent;
   border: none;
   outline: none;
@@ -232,88 +177,73 @@ body {
   cursor: not-allowed;
 }
 
-.send-button {
+/* Action Bar */
+.action-bar {
+  display: flex;
+  gap: 10px;
+  margin-top: 12px;
+  align-items: center;
+}
+
+.primary-action-button {
+  flex: 1;
   background: var(--accent);
   border: none;
   border-radius: 8px;
-  width: 36px;
-  height: 36px;
+  padding: 14px 24px;
+  color: white;
+  font-size: 15px;
+  font-weight: 500;
+  cursor: pointer;
+  transition: all 0.2s;
   display: flex;
   align-items: center;
   justify-content: center;
-  cursor: pointer;
-  transition: background 0.2s;
-  flex-shrink: 0;
+  gap: 8px;
 }
 
-.send-button:hover:not(:disabled) {
+.primary-action-button:hover:not(:disabled) {
   background: var(--accent-hover);
 }
 
-.send-button:disabled {
+.primary-action-button:disabled {
   opacity: 0.5;
   cursor: not-allowed;
 }
 
-.send-button svg {
-  color: white;
-}
-
-@media (max-width: 768px) {
-  .app {
-    padding: 0;
-  }
-
-  .container {
-    max-width: 100%;
-  }
-
-  .header {
-    padding: 16px 0;
-  }
-
-  .header h1 {
-    font-size: 20px;
-  }
-
-  .messages {
-    padding: 20px 0;
-  }
-
-  .message-content {
-    max-width: 90%;
-    font-size: 14px;
-  }
-
-  .input-area {
-    padding: 16px 0 20px;
-  }
-}
-
-.agent-panel {
-  background: var(--card-bg);
-  border: 1px solid var(--border-color);
-  border-radius: 12px;
-  padding: 20px;
-}
-
-.agent-panel h3 {
-  margin: 0 0 16px 0;
-  font-size: 16px;
-}
-
-.agent-steps {
-  display: flex;
-  flex-direction: column;
-  gap: 12px;
-}
-
-.agent-step {
-  display: flex;
-  gap: 12px;
+.secondary-action-button {
+  background: transparent;
+  border: 1px solid var(--border);
+  border-radius: 8px;
+  padding: 14px 20px;
+  color: var(--text-secondary);
   font-size: 14px;
+  font-weight: 500;
+  cursor: pointer;
+  transition: all 0.2s;
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  white-space: nowrap;
 }
 
-.step-icon {
-  min-width: 20px;
+.secondary-action-button:hover {
+  background: var(--bg-secondary);
+  border-color: var(--accent);
+  color: var(--text-primary);
+}
+
+.spinner {
+  width: 16px;
+  height: 16px;
+  border: 2px solid rgba(255, 255, 255, 0.3);
+  border-top-color: white;
+  border-radius: 50%;
+  animation: spin 0.6s linear infinite;
+}
+
+@keyframes spin {
+  to {
+    transform: rotate(360deg);
+  }
 }
